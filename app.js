@@ -1,6 +1,6 @@
 /* TEI CNC mobile PWA. Engine ported from TEI CNC Lite V3.9; storage keys and backup format unchanged. */
 (()=>{'use strict';
-const KEY='tei_cnc_single_machine_v3',DB='tei_cnc_v3_drawings',PREF='tei_cnc_mobile_prefs',MS_H=3600000,APP_VERSION='4.3.0';
+const KEY='tei_cnc_single_machine_v3',DB='tei_cnc_v3_drawings',PREF='tei_cnc_mobile_prefs',MS_H=3600000,APP_VERSION='4.3.1';
 const $=id=>document.getElementById(id);
 const esc=x=>String(x??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 const pad=n=>String(n).padStart(2,'0');

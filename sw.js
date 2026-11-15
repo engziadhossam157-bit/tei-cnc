@@ -1,5 +1,5 @@
 /* TEI CNC service worker: app shell cached for full offline use. Bump VERSION on every release. */
-const VERSION='tei-cnc-4.3.0';
+const VERSION='tei-cnc-4.3.1';
 const SHELL=['./','index.html','app.css','app.js','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','icons/maskable-512.png','icons/apple-touch-icon.png','icons/logo.png','icons/logo-mark.png','firebase-config.js','sync.js','vendor/firebase-app.js','vendor/firebase-auth.js','vendor/firebase-firestore.js','fonts/readex-arabic.woff2','fonts/readex-latin.woff2','fonts/barlow-sc-500.woff2','fonts/barlow-sc-600.woff2','fonts/barlow-sc-700.woff2'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(VERSION).then(c=>c.addAll(SHELL)))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==VERSION).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
