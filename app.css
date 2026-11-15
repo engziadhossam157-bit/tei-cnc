@@ -362,3 +362,26 @@ body.has-live .toast{bottom:calc(var(--nav-h) + var(--safe-b) + 80px)}
   .onlyprint th,.onlyprint td{border:1px solid #999;padding:7px;text-align:right}
   .onlyprint .print-total{border-top:2px solid #222;padding:12px 0;margin-top:16px;font-size:15pt;text-align:left}
 }
+
+/* ---------- PIN pad ---------- */
+.pinwrap{display:flex;flex-direction:column;gap:20px;padding:4px 0 8px}
+.pindots{display:flex;gap:14px;justify-content:center;direction:ltr;min-height:20px}
+.pindots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--ink)}
+.pindots i.on{background:var(--ink)}
+.pindots.err{animation:shake .32s}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.pinpad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;direction:ltr;max-width:340px;width:100%;margin:0 auto}
+.pinpad button{min-height:64px;border-radius:14px;border:1px solid var(--rule);background:var(--face);font:600 26px var(--font-num);display:grid;place-items:center;transition:background-color .12s}
+.pinpad button:active{background:var(--face-2)}
+.pinpad .ok{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+/* ---------- Payments ---------- */
+.readouts.money .ro b{font-size:17px}
+.readouts.grid2 .ro:nth-child(odd){border-inline-start:0}
+.readouts.grid2 .ro:nth-child(n+3){border-top:1px solid var(--rule-soft)}
+.paylist{border-top:1px solid var(--rule-soft)}
+.payrow{display:flex;align-items:center;gap:8px;padding:10px 12px 10px 16px;border-top:1px solid var(--rule-soft)}
+.payrow:first-child{border-top:0}
+.payrow .t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.45}
+.payrow .t b{font-size:18px}
+.payrow .t span{font-size:13px;color:var(--ink-2)}
