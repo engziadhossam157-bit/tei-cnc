@@ -385,3 +385,7 @@ body.has-live .toast{bottom:calc(var(--nav-h) + var(--safe-b) + 80px)}
 .payrow .t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.45}
 .payrow .t b{font-size:18px}
 .payrow .t span{font-size:13px;color:var(--ink-2)}
+
+/* ---------- Cloud ---------- */
+.scrim.solid{background:var(--steel) url(icons/logo.png) center 22% / min(260px,62vw) no-repeat;opacity:1}
+.banner.info{background:var(--fault-soft);color:var(--fault)}

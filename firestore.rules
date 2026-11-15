@@ -1,0 +1,55 @@
+rules_version = '2';
+// TEI CNC: one workshop, three roles. Paste this into Firebase console > Firestore > Rules, then Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null && request.auth.token.email != null; }
+    function em() { return request.auth.token.email.lower(); }
+    function mpath() { return /databases/$(database)/documents/workshops/main/members/$(em()); }
+    function ownerPath() { return /databases/$(database)/documents/workshops/main/meta/owner; }
+    function isMember() { return signedIn() && exists(mpath()) && get(mpath()).data.active == true; }
+    function hasRole(rs) { return isMember() && get(mpath()).data.role in rs; }
+    function onlyChanged(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    match /workshops/main {
+      // First account to sign in creates the workshop and becomes its manager.
+      match /meta/owner {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.email == em();
+      }
+      match /meta/settings {
+        allow read: if isMember();
+        allow write: if hasRole(['manager']);
+      }
+      // Member documents are keyed by lowercase email. Only a manager adds or edits staff,
+      // and a manager cannot change their own record (no accidental self lock-out).
+      match /members/{mid} {
+        allow read: if signedIn() && (mid == em() || isMember());
+        allow create: if hasRole(['manager'])
+          || (signedIn() && mid == em() && request.resource.data.role == 'manager'
+              && !exists(ownerPath()) && getAfter(ownerPath()).data.email == em());
+        allow update: if hasRole(['manager']) && mid != em();
+        allow delete: if false;
+      }
+      // Work orders without money. The operator may only move the order through run/finish.
+      match /orders/{id} {
+        allow read: if isMember();
+        allow create, delete: if hasRole(['manager']);
+        allow update: if hasRole(['manager'])
+          || (hasRole(['operator']) && onlyChanged(['status', 'startedAt', 'completedAt', 'updatedAt', 'updatedBy']));
+      }
+      // Prices, payment terms and payments: manager and accounts only.
+      match /finance/{id} {
+        allow read, write: if hasRole(['manager', 'finance']);
+      }
+      match /invoices/{id} {
+        allow read, write: if hasRole(['manager', 'finance']);
+      }
+      // Machine time log.
+      match /sessions/{id} {
+        allow read: if isMember();
+        allow create, update: if hasRole(['manager', 'operator']);
+        allow delete: if hasRole(['manager']);
+      }
+    }
+  }
+}

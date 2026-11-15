@@ -1,6 +1,6 @@
 /* TEI CNC mobile PWA. Engine ported from TEI CNC Lite V3.9; storage keys and backup format unchanged. */
 (()=>{'use strict';
-const KEY='tei_cnc_single_machine_v3',DB='tei_cnc_v3_drawings',PREF='tei_cnc_mobile_prefs',MS_H=3600000,APP_VERSION='4.2.0';
+const KEY='tei_cnc_single_machine_v3',DB='tei_cnc_v3_drawings',PREF='tei_cnc_mobile_prefs',MS_H=3600000,APP_VERSION='4.3.0';
 const $=id=>document.getElementById(id);
 const esc=x=>String(x??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 const pad=n=>String(n).padStart(2,'0');
@@ -60,7 +60,12 @@ function canDeliver(o){return !!o&&o.status==='انتهاء'&&!!o.completedAt&&s
 function priorities(o){return ({'عاجل':0,'عالي':1,'عادي':2}[o.priority]??2)}
 window.TEI_ENGINE={totals,handling,orderTotals,splitDay,dayRows,bill,canDeliver,canInvoice,canFinish,overlap,sumOrder,localDay,dayBounds};
 
-function save(){try{localStorage.setItem(KEY,JSON.stringify(state));return true}catch(e){$('storeError').classList.remove('hidden');toast('تعذر حفظ البيانات');return false}}
+/* Cloud mode: Firebase config present and served over http(s). ?emulator=1 on 127.0.0.1 is the local test harness. */
+const EMU=location.hostname==='127.0.0.1'&&new URLSearchParams(location.search).has('emulator');
+const CLOUD_CFG=EMU?{firebase:{apiKey:'demo-key',authDomain:'demo-tei.firebaseapp.com',projectId:'demo-tei',appId:'demo'},emulator:{}}:window.TEI_FIREBASE_CONFIG;
+const CLOUD=!!CLOUD_CFG&&/^https?:$/.test(location.protocol);
+let me=null,sync=null,members=[],syncInfo={online:navigator.onLine,pending:false,ready:false};
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){$('storeError').classList.remove('hidden');if(!CLOUD){toast('تعذر حفظ البيانات');return false}}if(CLOUD&&sync)sync.push(state);return true}
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(s&&s.version===3&&Array.isArray(s.orders)&&Array.isArray(s.sessions)&&Array.isArray(s.invoices)){state=s;state.tentatives=Array.isArray(s.tentatives)?s.tentatives:[];state.planOrder=Array.isArray(s.planOrder)?s.planOrder:[];state.dayCapacity=(s.dayCapacity&&typeof s.dayCapacity==='object')?s.dayCapacity:{}}}catch(e){$('storeError').classList.remove('hidden')}}
 
 /* ================= Planning engine ================= */
@@ -121,11 +126,11 @@ let sheet=null,ignorePop=false;
 function openSheet({title,sub='',body,foot='',onClose=null,focus=null,locked=false}){
   const host=$('sheetHost');
   if(!sheet){
-    host.innerHTML=`<div class="scrim" ${locked?'':'data-close'}></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1"></div>`;
+    host.innerHTML=`<div class="scrim ${locked&&CLOUD?'solid':''}" ${locked?'':'data-close'}></div><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1"></div>`;
     sheet={el:host.querySelector('.sheet'),scrim:host.querySelector('.scrim'),onClose,locked,lastFocus:document.activeElement};
     history.pushState({sheet:1},'');
     requestAnimationFrame(()=>requestAnimationFrame(()=>{sheet?.el.classList.add('on');sheet?.scrim.classList.add('on')}));
-  }else{sheet.onClose?.();sheet.onClose=onClose;sheet.locked=locked;if(locked)sheet.scrim.removeAttribute('data-close');else sheet.scrim.setAttribute('data-close','')}
+  }else{sheet.onClose?.();sheet.onClose=onClose;sheet.locked=locked;sheet.scrim.classList.toggle('solid',locked&&CLOUD);if(locked)sheet.scrim.removeAttribute('data-close');else sheet.scrim.setAttribute('data-close','')}
   sheet.el.innerHTML=`<div class="sheet-grip" aria-hidden="true"></div><div class="sheet-head"><div class="t"><h2 id="sheetTitle">${esc(title)}</h2>${sub?`<p>${sub}</p>`:''}</div>${locked?'':`<button class="iconbtn" type="button" data-close aria-label="إغلاق">${ic('x')}</button>`}</div><div class="sheet-body">${body}<div class="form-error hidden" id="sheetErr" role="alert"></div></div>${foot?`<div class="sheet-foot">${foot}</div>`:''}`;
   setTimeout(()=>{const f=focus?sheet?.el.querySelector(focus):null;(f||sheet?.el)?.focus({preventScroll:true})},60);
 }
@@ -152,7 +157,7 @@ function pinPad({title,sub='',confirmLabel='دخول',locked=false,extra='',onSu
 document.addEventListener('keydown',e=>{if(!sheet||!$('pinPad')||!pinPad.press)return;if(/^\d$/.test(e.key))pinPad.press(e.key);else if(e.key==='Backspace')pinPad.press('back');else if(e.key==='Enter'){e.preventDefault();pinPad.press('ok')}});
 async function verifyPin(r,v){if(now()<pinLockUntil)return false;if(await hashPin(v)===state.security?.pins?.[r]){pinFails=0;return true}if(++pinFails>=5){pinLockUntil=now()+30000;pinFails=0}return false}
 const pinFailMsg=()=>now()<pinLockUntil?'محاولات كثيرة خاطئة. انتظر 30 ثانية':'الرقم غير صحيح';
-function requestRole(r){if(!ROLES[r])return;
+function requestRole(r){if(!ROLES[r])return;if(CLOUD){toast('الدور بيحدده المدير من «فريق العمل»');return}
   if(r===role){if(sheet)closeSheet();return}
   if(!hasPin(r)){closeSheet(true);roleSet(r,true);toast('الدور الحالي: '+ROLES[r].label);return}
   pinPad({title:'رقم '+ROLES[r].label,sub:'أدخل الرقم السري لهذا الدور',onSubmit:async v=>{if(!await verifyPin(r,v)){sheetErr(pinFailMsg());return false}closeSheet(true);roleSet(r,true);toast('الدور الحالي: '+ROLES[r].label)}})}
@@ -566,19 +571,24 @@ function printReport(){const r=reportData();if(r.error)return toast(r.error);pri
 /* ================= More ================= */
 let installEvt=null;
 function renderMore(){const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent),standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
-  $('scr-more').innerHTML=`
+  const pre=CLOUD&&me?.role==='manager'&&!localStorage.getItem(PRE+'_done')?preCloud():null;
+  $('scr-more').innerHTML=(CLOUD?`
+  <div class="section-h" style="margin-top:0"><h2>حسابي</h2></div>
+  <div class="card list"><button type="button" class="litem" data-action="account">${ic(ROLES[role].icon)}<span class="t">${esc(me?.name||'')}<span><span class="ltr">${esc(me?.email||'')}</span> · ${esc(ROLES[role].label)}</span></span>${ic('caret-left')}</button>
+    <div class="litem">${ic(syncInfo.online?'check':'warning')}<span class="t">${syncInfo.online?(syncInfo.pending?'بيرفع التعديلات':'متزامن مع الورشة'):'مفيش نت'}<span>${syncInfo.online?'كل الموبايلات بتشوف نفس البيانات':'التعديلات محفوظة وهتترفع لما النت يرجع'}</span></span></div></div>
+  ${me?.role==='manager'?`<div class="section-h"><h2>الإدارة</h2></div><div class="card list"><button type="button" class="litem" data-action="team">${ic('user-switch')}<span class="t">فريق العمل<span>${members.filter(m=>m.active!==false).length} شخص · إضافة وتحديد الأدوار</span></span>${ic('caret-left')}</button>${pre&&pre.orders?.length?`<button type="button" class="litem" data-action="uploadPre">${ic('upload-simple')}<span class="t">رفع البيانات القديمة للجهاز ده<span>${pre.orders.length} أمر شغل كانوا على الموبايل قبل السيرفر</span></span></button>`:''}</div>`:''}`:`
   <div class="section-h" style="margin-top:0"><h2>الدور الحالي</h2></div>
   <div class="card list" role="radiogroup" aria-label="الدور">${roleListHTML()}</div>
   <p class="help">الدور المحمي برقم سري بيطلب الرقم عند التبديل له. ده قفل خفيف على الجهاز، مش نظام حسابات مستخدمين.</p>
   ${role==='manager'?`<div class="section-h"><h2>الأمان</h2></div>
-  <div class="card list"><button type="button" class="litem" data-action="pins">${ic('shield-check')}<span class="t">الأرقام السرية للأدوار<span>${Object.keys(ROLES).filter(hasPin).length?Object.keys(ROLES).filter(hasPin).map(k=>ROLES[k].label).join('، ')+': محمي':'لا يوجد دور محمي برقم'}</span></span>${ic('caret-left')}</button></div>`:''}
+  <div class="card list"><button type="button" class="litem" data-action="pins">${ic('shield-check')}<span class="t">الأرقام السرية للأدوار<span>${Object.keys(ROLES).filter(hasPin).length?Object.keys(ROLES).filter(hasPin).map(k=>ROLES[k].label).join('، ')+': محمي':'لا يوجد دور محمي برقم'}</span></span>${ic('caret-left')}</button></div>`:''}`)+`
   <div class="section-h"><h2>البيانات</h2></div>
   <div class="card list">
     <button type="button" class="litem" data-action="backup">${ic('download-simple')}<span class="t">نسخة احتياطية<span>ملف JSON بالبيانات والرسومات المرفقة</span></span></button>
     ${role==='manager'||!Object.keys(ROLES).some(hasPin)?`<button type="button" class="litem" data-action="restore">${ic('upload-simple')}<span class="t">استعادة من نسخة<span>تستبدل كل البيانات الحالية على هذا الجهاز</span></span></button>`:''}
-    ${role==='manager'?`<button type="button" class="litem" data-action="demo">${ic('flask')}<span class="t">بيانات للتجربة<span>تضيف أمرين تجريبيين</span></span></button>`:''}
+    ${role==='manager'&&!CLOUD?`<button type="button" class="litem" data-action="demo">${ic('flask')}<span class="t">بيانات للتجربة<span>تضيف أمرين تجريبيين</span></span></button>`:''}
   </div>
-  <p class="help">البيانات محفوظة على هذا الهاتف فقط. خذ نسخة احتياطية بانتظام، وخاصة قبل تغيير الجهاز أو مسح بيانات المتصفح. ملفات V3.9 الاحتياطية تعمل هنا مباشرة.</p>
+  <p class="help">${CLOUD?'البيانات على سيرفر الورشة وبتظهر على كل الموبايلات. النسخة الاحتياطية ملف إضافي للأمان. الرسومات المرفقة بتفضل على الموبايل اللي رفعها.':'البيانات محفوظة على هذا الهاتف فقط. خذ نسخة احتياطية بانتظام، وخاصة قبل تغيير الجهاز أو مسح بيانات المتصفح. ملفات V3.9 الاحتياطية تعمل هنا مباشرة.'}</p>
   <div class="card card-pad" style="display:grid;place-items:center;padding:24px 16px;margin-top:8px"><img src="icons/logo.png" alt="TEI توليرنس للصناعات الهندسية" width="560" height="312" style="width:min(240px,70%);height:auto"></div>
   <div class="section-h"><h2>التطبيق</h2></div>
   <div class="card list">
@@ -592,12 +602,13 @@ function fileDB(){if(idb)return Promise.resolve(idb);return new Promise((resolve
 async function putDrawing(id,file){const db=await fileDB();return new Promise((res,rej)=>{const tx=db.transaction('drawings','readwrite');tx.objectStore('drawings').put({id,name:file.name,type:file.type,blob:file});tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
 async function getDrawing(id){const db=await fileDB();return new Promise((res,rej)=>{const req=db.transaction('drawings','readonly').objectStore('drawings').get(id);req.onsuccess=()=>res(req.result);req.onerror=()=>rej(req.error)})}
 function downloadFile(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000)}
-async function openDrawing(id){const o=order(id);if(!o?.fileName)return toast('لا يوجد رسم مرفق');try{const x=await getDrawing(id);if(!x?.blob)return toast('المرفق غير موجود على هذا الجهاز');downloadFile(x.blob,x.name)}catch(e){toast('لم يمكن فتح المرفق')}}
+async function openDrawing(id){const o=order(id);if(!o?.fileName)return toast('لا يوجد رسم مرفق');try{const x=await getDrawing(id);if(!x?.blob)return toast(CLOUD?'الرسم محفوظ على الموبايل اللي رفعه بس':'المرفق غير موجود على هذا الجهاز');downloadFile(x.blob,x.name)}catch(e){toast('لم يمكن فتح المرفق')}}
 async function backup(){const files=[];for(const o of state.orders){if(!o.fileName)continue;try{const x=await getDrawing(o.id);if(!x?.blob)continue;const data=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej(r.error);r.readAsDataURL(x.blob)});files.push({id:o.id,name:x.name,type:x.type,data})}catch(e){toast('لم يُدرج أحد الرسومات في النسخة')}}
   downloadFile(new Blob([JSON.stringify({type:'TEI_CNC_V3',state,files,at:now()})],{type:'application/json'}),'TEI_CNC_Backup_'+localDay(now())+'.json');toast('تم تجهيز النسخة الاحتياطية')}
-async function restore(file){if(!file)return;if(role!=='manager'&&Object.keys(ROLES).some(hasPin))return toast('الاستعادة للمدير فقط');try{const b=JSON.parse(await file.text());if(b.type!=='TEI_CNC_V3'||b.state?.version!==3||!Array.isArray(b.state?.orders)||!Array.isArray(b.state?.sessions)||!Array.isArray(b.state?.invoices))return toast('ملف النسخة الاحتياطية غير صحيح');
-  if(!await ask({title:'استبدال كل البيانات؟',body:`النسخة فيها ${b.state.orders.length} أمر شغل. ستُستبدل كل البيانات الحالية على هذا الجهاز. خذ نسخة احتياطية أولًا لو تحتاجها.`,ok:'استعادة',danger:true}))return;
+async function restore(file){if(!file)return;if(role!=='manager'&&(CLOUD||Object.keys(ROLES).some(hasPin)))return toast('الاستعادة للمدير فقط');try{const b=JSON.parse(await file.text());if(b.type!=='TEI_CNC_V3'||b.state?.version!==3||!Array.isArray(b.state?.orders)||!Array.isArray(b.state?.sessions)||!Array.isArray(b.state?.invoices))return toast('ملف النسخة الاحتياطية غير صحيح');
+  if(!await ask({title:'استبدال كل البيانات؟',body:CLOUD?`النسخة فيها ${b.state.orders.length} أمر شغل. هتترفع على سيرفر الورشة وتظهر على كل الموبايلات، وأي أمر بنفس الرقم هيتبدل. خذ نسخة احتياطية الأول.`:`النسخة فيها ${b.state.orders.length} أمر شغل. ستُستبدل كل البيانات الحالية على هذا الجهاز. خذ نسخة احتياطية أولًا لو تحتاجها.`,ok:'استعادة',danger:true}))return;
   for(const f of b.files||[]){const raw=atob(f.data),arr=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);await putDrawing(f.id,new File([arr],f.name,{type:f.type}))}
+  if(CLOUD){const up={...b.state,tentatives:b.state.tentatives||[],planOrder:b.state.planOrder||[],dayCapacity:b.state.dayCapacity||{}};try{const n=await sync.uploadAll(up);toast(`تم رفع النسخة على سيرفر الورشة (${n} سجل)`)}catch(e){toast('تعذر رفع النسخة: '+(e.code||e.message))}return}
   state=b.state;state.tentatives=Array.isArray(state.tentatives)?state.tentatives:[];state.planOrder=Array.isArray(state.planOrder)?state.planOrder:[];state.dayCapacity=state.dayCapacity||{};save();render();toast('تمت الاستعادة بنجاح')}catch(e){toast('تعذر استعادة النسخة: تحقق من الملف ومساحة التخزين')}}
 async function demoData(){if(state.orders.length&&!await ask({title:'إضافة أمثلة؟',body:'سيُضاف أمران تجريبيان إلى أوامرك الحالية.',ok:'إضافة'}))return;
   if(live())return toast('أنهِ التشغيل الجاري أولًا قبل إضافة أمثلة');
@@ -607,6 +618,66 @@ async function demoData(){if(state.orders.length&&!await ask({title:'إضافة 
   state.sessions.push({id:makeId(),orderId:ids[0],operator:'أحمد (تجريبي)',startAt:b-6*MS_H,endAt:b-2*MS_H,segments:[{type:'run',startAt:b-6*MS_H,endAt:b-4*MS_H},{type:'stop',startAt:b-4*MS_H,endAt:b-3.5*MS_H,reason:'كسر أو تلف عدة القطع',present:true},{type:'run',startAt:b-3.5*MS_H,endAt:b-2*MS_H}]});
   state.sessions.push({id:makeId(),orderId:ids[1],operator:'محمود (تجريبي)',startAt:b-30*MS_H,endAt:b-25*MS_H,segments:[{type:'run',startAt:b-30*MS_H,endAt:b-25*MS_H}]});
   save();render();toast('تمت إضافة أمرين للتجربة')}
+
+/* ================= Cloud: login, identity, team ================= */
+const PRE='tei_cnc_pre_cloud';
+const preCloud=()=>{try{return JSON.parse(localStorage.getItem(PRE)||'null')}catch(e){return null}};
+const AUTH_ERR={'auth/invalid-credential':'الإيميل أو الباسورد غلط','auth/wrong-password':'الإيميل أو الباسورد غلط','auth/user-not-found':'مفيش حساب بالإيميل ده. اختار «حساب جديد»','auth/email-already-in-use':'الإيميل ده عليه حساب بالفعل. ادخل بيه','auth/weak-password':'الباسورد لازم 6 حروف على الأقل','auth/invalid-email':'الإيميل مكتوب غلط','auth/network-request-failed':'مفيش اتصال بالنت','auth/too-many-requests':'محاولات كتير. استنى شوية وجرّب تاني','auth/missing-password':'اكتب الباسورد'};
+const authMsg=e=>AUTH_ERR[e?.code]||('حصل خطأ: '+(e?.code||e?.message||e));
+function showConnecting(){openSheet({title:'جارٍ تحميل بيانات الورشة',sub:'لحظة واحدة',locked:true,body:`<div class="empty" id="connecting">${ic('gauge','lg')}<p>أول مرة على الموبايل ده محتاجة نت. بعد كده التطبيق يشتغل من غير نت ويزامن لما يرجع.</p></div>`})}
+function showLogin(mode='in'){const up=mode==='up';
+  openSheet({title:up?'حساب جديد':'تسجيل الدخول',sub:up?'استخدم الإيميل اللي المدير ضافه في «فريق العمل»':'TEI CNC · توليرنس للصناعات الهندسية',locked:true,body:`<form id="authForm" class="fgrid" novalidate>
+    ${up?`<div class="field full"><label for="a-name">الاسم</label><input id="a-name" autocomplete="name" maxlength="80"></div>`:''}
+    <div class="field full"><label for="a-email">الإيميل</label><input id="a-email" type="email" autocomplete="username" inputmode="email" dir="ltr" style="text-align:right"></div>
+    <div class="field full"><label for="a-pass">الباسورد</label><input id="a-pass" type="password" autocomplete="${up?'new-password':'current-password'}" dir="ltr" style="text-align:right">${up?'<span class="hint">6 حروف أو أرقام على الأقل</span>':''}</div>
+  </form>`,foot:`<button class="btn primary block" type="button" id="authGo">${ic('check')}${up?'إنشاء الحساب':'دخول'}</button><div class="row"><button class="btn quiet sm" type="button" id="authSwitch">${up?'عندي حساب: دخول':'أول مرة؟ حساب جديد'}</button>${up?'':'<button class="btn quiet sm" type="button" id="authReset">نسيت الباسورد</button>'}</div>`,focus:up?'#a-name':'#a-email'});
+  const go=async()=>{const email=$('a-email').value.trim(),pass=$('a-pass').value;if(!email)return sheetErr('اكتب الإيميل',$('a-email'));if(!pass)return sheetErr('اكتب الباسورد',$('a-pass'));
+    $('authGo').disabled=true;try{if(up)await sync.signUp($('a-name').value.trim(),email,pass);else await sync.signIn(email,pass)}catch(e){sheetErr(authMsg(e))}finally{if($('authGo'))$('authGo').disabled=false}};
+  $('authGo').onclick=go;$('authForm').onsubmit=e=>{e.preventDefault();go()};$('authForm').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go()}};
+  $('authSwitch').onclick=()=>showLogin(up?'in':'up');
+  if($('authReset'))$('authReset').onclick=async()=>{const email=$('a-email').value.trim();if(!email)return sheetErr('اكتب الإيميل الأول',$('a-email'));try{await sync.resetPassword(email);toast('اتبعت لينك تغيير الباسورد على الإيميل')}catch(e){sheetErr(authMsg(e))}}}
+function showNoAccess({email,name,canBootstrap,disabled}){
+  if(canBootstrap){openSheet({title:'إنشاء الورشة',sub:`<span class="ltr">${esc(email)}</span>`,locked:true,body:`<p class="help" style="font-size:15px;color:var(--ink)">مفيش ورشة متسجلة لسه. هتبقى أنت <b>مدير الورشة</b>، وبعدها تضيف المشغّلين والحسابات من «المزيد» ← «فريق العمل».</p><div class="field"><label for="b-name">اسمك</label><input id="b-name" maxlength="80" value="${esc(name||'')}"></div>`,foot:`<button class="btn primary block" type="button" id="bootGo">${ic('check')}إنشاء الورشة</button><button class="btn quiet block" type="button" id="bootOut">خروج</button>`,focus:'#b-name'});
+    $('bootGo').onclick=async()=>{const n=$('b-name').value.trim();if(!n)return sheetErr('اكتب اسمك',$('b-name'));$('bootGo').disabled=true;try{await sync.bootstrap(n)}catch(e){if($('bootGo'))$('bootGo').disabled=false;sheetErr('تعذر إنشاء الورشة: '+(e.code||e.message))}};$('bootOut').onclick=()=>sync.signOut();return}
+  openSheet({title:disabled?'الحساب موقوف':'الحساب مش متضاف للورشة',sub:`<span class="ltr">${esc(email)}</span>`,locked:true,body:`<p class="help" style="font-size:15px;color:var(--ink)">${disabled?'المدير أوقف الحساب ده. كلّمه لو ده غلط.':'اطلب من مدير الورشة يضيف الإيميل ده من «فريق العمل». أول ما يضيفه، البيانات هتظهر هنا لوحدها.'}</p>`,foot:`<button class="btn block" type="button" id="naOut">${ic('arrows-left-right')}الدخول بحساب تاني</button>`});
+  $('naOut').onclick=()=>sync.signOut()}
+function accountSheet(){if(!me)return;
+  openSheet({title:me.name,sub:`<span class="ltr">${esc(me.email)}</span>`,body:`<div class="infolist"><div><small>الدور</small><span>${esc(ROLES[me.role].label)}</span></div><div><small>الاتصال</small><span>${syncInfo.online?(syncInfo.pending?'بيرفع التعديلات':'متصل ومتزامن'):'مفيش نت'}</span></div></div><p class="help">الدور بيحدده مدير الورشة. كل تعديل بيتسجل باسمك.</p>`,foot:`<button class="btn block" type="button" id="accOut">${ic('arrows-left-right')}تسجيل الخروج</button>`});
+  $('accOut').onclick=async()=>{if(syncInfo.pending&&!await ask({title:'فيه تعديلات لسه ما اترفعتش',body:'لو خرجت دلوقتي ممكن تضيع. الأفضل تستنى لحد ما النت يرجع.',ok:'خروج على أي حال',danger:true}))return;closeSheet(true);sync.signOut()}}
+function teamSheet(){if(!me||me.role!=='manager')return;const list=[...members].sort((a,b)=>(a.active===false)-(b.active===false)||String(a.name).localeCompare(String(b.name),'ar'));let r='operator';
+  openSheet({title:'فريق العمل',sub:'كل شخص بيدخل بإيميله، والدور بيحدد هو يشوف ويعمل إيه',body:`<div class="card list" style="box-shadow:none">${list.map(m=>`<div class="litem">${ic(ROLES[m.role]?.icon||'user')}<span class="t">${esc(m.name)}${m.email===me.email?' (أنت)':''}<span><span class="ltr">${esc(m.email)}</span> · ${esc(ROLES[m.role]?.label||m.role)}${m.active===false?' · موقوف':''}</span></span>${m.email===me.email?'':`<button type="button" class="btn sm" data-medit="${esc(m.email)}">تعديل</button>`}</div>`).join('')}</div>
+    <h3 style="font-size:16px;font-weight:600;margin-top:4px">إضافة شخص</h3>
+    <div class="fgrid"><div class="field full"><label for="m-name">الاسم</label><input id="m-name" maxlength="80"></div><div class="field full"><label for="m-email">الإيميل</label><input id="m-email" type="email" inputmode="email" dir="ltr" style="text-align:right"></div></div>
+    <div class="field"><span class="label" id="m-roleLbl">الدور</span><div class="namechips" role="radiogroup" aria-labelledby="m-roleLbl" id="m-role">${Object.entries(ROLES).map(([k,x])=>`<button type="button" class="chip" role="radio" aria-checked="${k===r}" data-r="${k}">${esc(x.label)}</button>`).join('')}</div></div>
+    <p class="help">بعد الإضافة، الشخص يفتح التطبيق ويختار «أول مرة؟ حساب جديد» بنفس الإيميل ويعمل الباسورد بتاعه.</p>`,foot:`<button class="btn primary block" type="button" id="m-add">${ic('plus')}إضافة</button>`});
+  $('m-role').onclick=e=>{const b=e.target.closest('[data-r]');if(!b)return;r=b.dataset.r;$('m-role').querySelectorAll('[data-r]').forEach(x=>x.setAttribute('aria-checked',x===b))};
+  sheet.el.querySelectorAll('[data-medit]').forEach(b=>b.onclick=()=>memberEdit(b.dataset.medit));
+  $('m-add').onclick=()=>{const name=$('m-name').value.trim(),email=$('m-email').value.trim().toLowerCase();if(!name)return sheetErr('اكتب الاسم',$('m-name'));if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))return sheetErr('الإيميل مكتوب غلط',$('m-email'));if(members.some(m=>m.email===email))return sheetErr('الإيميل ده موجود بالفعل',$('m-email'));
+    sync.addMember({email,name,role:r}).catch(e=>toast('تعذر الإضافة: '+(e.code||e.message)));toast('تمت إضافة '+name);setTimeout(teamSheet,200)}}
+function memberEdit(email){const m=members.find(x=>x.email===email);if(!m)return;let r=m.role;
+  openSheet({title:m.name,sub:`<span class="ltr">${esc(m.email)}</span>`,body:`<div class="field"><span class="label" id="e-roleLbl">الدور</span><div class="namechips" role="radiogroup" aria-labelledby="e-roleLbl" id="e-role">${Object.entries(ROLES).map(([k,x])=>`<button type="button" class="chip" role="radio" aria-checked="${k===r}" data-r="${k}">${esc(x.label)}</button>`).join('')}</div></div><label class="check"><input type="checkbox" id="e-active" ${m.active!==false?'checked':''}> الحساب شغّال (شيل العلامة لإيقافه)</label>`,foot:`<button class="btn primary block" type="button" id="e-save">${ic('check')}حفظ</button><button class="btn quiet block" type="button" id="e-back">رجوع لفريق العمل</button>`});
+  $('e-role').onclick=e=>{const b=e.target.closest('[data-r]');if(!b)return;r=b.dataset.r;$('e-role').querySelectorAll('[data-r]').forEach(x=>x.setAttribute('aria-checked',x===b))};$('e-back').onclick=teamSheet;
+  $('e-save').onclick=()=>{sync.updateMember(email,{role:r,active:$('e-active').checked}).catch(e=>toast('تعذر الحفظ: '+(e.code||e.message)));toast('تم حفظ '+m.name);setTimeout(teamSheet,200)}}
+async function uploadPreCloud(){const p=preCloud();if(!p||me?.role!=='manager')return;
+  if(!await ask({title:'رفع البيانات القديمة؟',body:`فيه ${p.orders.length} أمر شغل كانوا محفوظين على الموبايل ده قبل السيرفر. هيترفعوا ويظهروا على كل الموبايلات. أي أمر بنفس الرقم على السيرفر هيتبدل.`,ok:'رفع'}))return;
+  try{const n=await sync.uploadAll(p);localStorage.setItem(PRE+'_done','1');toast(`تم رفع ${n} سجل للورشة`);renderMore()}catch(e){toast('تعذر الرفع: '+(e.code||e.message))}}
+function renderSyncBanner(){const b=$('syncBanner');if(!b)return;b.classList.toggle('hidden',!(CLOUD&&me&&!syncInfo.online))}
+// Signed out or not a member: drop the cached workshop data from this device's view and storage.
+function wipeLocal(){me=null;members=[];state.orders=[];state.sessions=[];state.invoices=[];state.dayCapacity={};state.planOrder=[];try{localStorage.removeItem(KEY)}catch(e){}render()}
+// Keep object identity when server updates arrive, so an open edit sheet still points at the live record.
+function reconcile(oldArr,newArr){const byId=new Map((oldArr||[]).map(x=>[x.id,x]));return newArr.map(n=>{const o=byId.get(n.id);if(!o)return n;for(const k of Object.keys(o))if(!(k in n))delete o[k];return Object.assign(o,n)})}
+const TEI_APP={toast,
+  syncReady(api){sync=api},
+  showLogin(){wipeLocal();showLogin()},
+  showNoAccess(x){wipeLocal();showNoAccess(x)},
+  setIdentity(m){const first=!me||me.email!==m.email,roleChanged=me?.role!==m.role;me=m;role=m.role;prefs.role=role;savePrefs();if(!draft.operator&&role!=='finance')draft.operator=m.name;
+    if(first&&role==='finance')orderFilter='pending_invoice';
+    if(!syncInfo.ready||roleChanged)showConnecting();
+    if(first||roleChanged)tabSet(live()?'machine':ROLES[role].home);else render()},
+  applyRemote(rs,meta){state.orders=reconcile(state.orders,rs.orders);state.sessions=reconcile(state.sessions,rs.sessions);state.invoices=reconcile(state.invoices,rs.invoices);state.dayCapacity=rs.dayCapacity||{};state.planOrder=rs.planOrder||[];members=meta.members||[];
+    try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
+    render()},
+  setSyncStatus(s){const was=syncInfo.ready;syncInfo=s;renderSyncBanner();if(s.ready&&me&&$('connecting'))closeSheet(true);if(tab==='more'&&!sheet)renderMore();if(!was&&s.ready)render()}};
 
 /* ================= Events ================= */
 document.addEventListener('click',e=>{
@@ -620,12 +691,12 @@ document.addEventListener('click',e=>{
     const btn=t.closest('[data-action]');if(!btn)return;const a=btn.dataset.action,id=btn.dataset.id;
   const needsClose=['edit','work','finish','deliver','invoice','editInvoice','dispatch','planEdit','goMachine','file'].includes(a)&&sheet;
   if(needsClose&&!['edit','finish','deliver','invoice','editInvoice','planEdit'].includes(a))closeSheet();
-  ({pay:()=>paySheet(id),receipt:()=>printReceipt(id,btn.dataset.pid),voidPay:()=>voidPayment(id,btn.dataset.pid),pins:managePins,openOrder:()=>openOrder(id),edit:()=>openOrderForm(id),newOrder:()=>openOrderForm(),finish:()=>finishOrder(id),deliver:()=>deliverOrder(id),invoice:()=>invoiceEditor(id),editInvoice:()=>invoiceEditor(id),dispatch:()=>printDispatch(id),file:()=>openDrawing(id),planEdit:()=>editPlan(id),
+  ({account:accountSheet,team:teamSheet,uploadPre:uploadPreCloud,pay:()=>paySheet(id),receipt:()=>printReceipt(id,btn.dataset.pid),voidPay:()=>voidPayment(id,btn.dataset.pid),pins:managePins,openOrder:()=>openOrder(id),edit:()=>openOrderForm(id),newOrder:()=>openOrderForm(),finish:()=>finishOrder(id),deliver:()=>deliverOrder(id),invoice:()=>invoiceEditor(id),editInvoice:()=>invoiceEditor(id),dispatch:()=>printDispatch(id),file:()=>openDrawing(id),planEdit:()=>editPlan(id),
     work:()=>{const s=live();if(s&&s.orderId!==id)return toast('يوجد تشغيل مفتوح على أمر آخر. أنهِ فترته أولًا');draft.orderId=id;tabSet('machine');if(!s)setTimeout(()=>$('operator').focus(),250)},
     goMachine:()=>tabSet('machine'),selectDay:()=>{selectedDay=btn.dataset.date;if(calendarView==='month'&&selectedDay.slice(0,7)!==weekAnchor.slice(0,7))weekAnchor=selectedDay;renderPlan()},dayCap:()=>editDayCapacity(btn.dataset.date),
     backup,restore:()=>$('restore').click(),demo:demoData,install:async()=>{if(!installEvt)return;installEvt.prompt();const r=await installEvt.userChoice;installEvt=null;if(r.outcome==='accepted')toast('تم تثبيت التطبيق');renderMore()}}[a]||(()=>{}))();
 });
-$('roleChip').onclick=()=>openSheet({title:'اختر الدور',sub:'الشاشة الرئيسية والإجراءات تتغير حسب الدور',body:`<div class="card list" role="radiogroup" aria-label="الدور" style="box-shadow:none">${roleListHTML()}</div>`});
+$('roleChip').onclick=()=>CLOUD?accountSheet():openSheet({title:'اختر الدور',sub:'الشاشة الرئيسية والإجراءات تتغير حسب الدور',body:`<div class="card list" role="radiogroup" aria-label="الدور" style="box-shadow:none">${roleListHTML()}</div>`});
 $('fabNew').onclick=()=>openOrderForm();
 $('search').oninput=renderOrders;
 $('operator').oninput=e=>{draft.operator=e.target.value;$('operatorChips').querySelectorAll('[data-op]').forEach(c=>c.setAttribute('aria-pressed',c.dataset.op===draft.operator.trim()))};
@@ -646,7 +717,7 @@ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=
 window.addEventListener('appinstalled',()=>{installEvt=null;toast('تم تثبيت التطبيق على الشاشة الرئيسية')});
 let hiddenAt=0;
 document.addEventListener('visibilitychange',()=>{if(document.hidden){hiddenAt=now();return}render();
-  if(hasPin(role)&&hiddenAt&&now()-hiddenAt>5*60000&&!sheet?.locked){if(sheet)closeSheet(true);lockScreen()}});
+  if(!CLOUD&&hasPin(role)&&hiddenAt&&now()-hiddenAt>5*60000&&!sheet?.locked){if(sheet)closeSheet(true);lockScreen()}});
 
 /* ================= PWA ================= */
 if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){navigator.serviceWorker.register('sw.js').then(reg=>{
@@ -661,7 +732,12 @@ role=ROLES[prefs.role]?prefs.role:'manager';if(role==='finance')orderFilter='pen
 $('reportDate').value=localDay(now());$('reportFrom').value=localDay(now()).slice(0,7)+'-01';$('reportTo').value=localDay(now());
 const qTab=new URLSearchParams(location.search).get('tab');
 tabSet(['machine','orders','plan','reports','more'].includes(qTab)?qTab:(live()?'machine':ROLES[role].home));
-if(hasPin(role))lockScreen();
+if(CLOUD){
+  // Keep a one-time copy of pre-cloud local data so the manager can upload it to the workshop.
+  try{const loc=JSON.parse(localStorage.getItem(KEY)||'null');if(loc?.orders?.length&&!localStorage.getItem(PRE)&&!localStorage.getItem(PRE+'_seen'))localStorage.setItem(PRE,JSON.stringify(loc));localStorage.setItem(PRE+'_seen','1')}catch(e){}
+  showConnecting();
+  import('./sync.js').then(m=>m.start(CLOUD_CFG,TEI_APP)).catch(e=>{closeSheet(true);toast('تعذر تحميل نظام المزامنة: '+e.message,{ms:12000})});
+}else if(hasPin(role))lockScreen();
 setInterval(tickLive,1000);
 setInterval(()=>{if(document.hidden)return;if(tab==='machine')renderMachine();renderChrome()},30000);
 fileDB().catch(()=>toast('ملفات الرسومات تحتاج تخزينًا متاحًا في المتصفح'));

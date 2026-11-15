@@ -27,6 +27,7 @@
 </header>
 <div class="banner hidden" id="storeError" role="alert"><svg class="ic" aria-hidden="true"><use href="#i-warning"/></svg><div>فشل حفظ البيانات على هذا الجهاز. خذ نسخة احتياطية الآن من «المزيد» وراجع مساحة التخزين.</div></div>
 
+<div class="banner info hidden" id="syncBanner" role="status"><svg class="ic" aria-hidden="true"><use href="#i-warning"/></svg><div>مفيش نت. التعديلات محفوظة على الموبايل وهتترفع لما النت يرجع.</div></div>
 <main>
   <!-- Machine -->
   <section class="screen" id="scr-machine" aria-labelledby="screenTitle">
@@ -137,6 +138,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div id="printRoot" class="onlyprint"></div>
 <input id="restore" type="file" accept=".json,application/json" hidden>
+<script src="firebase-config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
