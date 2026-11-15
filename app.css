@@ -12,8 +12,8 @@
   --steel:#dce0e4;--steel-2:#cdd3d8;--face:#f7f8f9;--face-2:#edf0f2;
   --ink:#14181c;--ink-2:#454f58;--ink-3:#626c75;
   --rule:#a9b1b8;--rule-soft:#d2d8dc;
-  --accent:#c2410c;--accent-ink:#ffffff;--accent-soft:#fbe5da;--accent-text:#a3360a;
-  --run:#17784d;--run-soft:#dcefe4;--fault:#8f5400;--fault-soft:#f8ead0;
+  --accent:#f0a500;--accent-ink:#14181c;--accent-soft:#fdf1cf;--accent-text:#865900;
+  --run:#17784d;--run-soft:#dcefe4;--fault:#b93a0b;--fault-soft:#fbe5da;
   --danger:#b42318;--danger-soft:#fbe3df;--info:#1d5a93;--info-soft:#dfeaf5;
   --hatch:rgba(20,24,28,.16);
   --lift:0 1px 0 rgba(255,255,255,.75) inset,0 1px 2px rgba(20,24,28,.10);
@@ -28,10 +28,10 @@
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{margin:0;background:var(--steel);color:var(--ink);font:400 16px/1.6 var(--font-ui);min-height:100dvh;-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
 ::selection{background:var(--accent);color:var(--accent-ink)}
-input,select,textarea{caret-color:var(--accent)}
+input,select,textarea{caret-color:var(--ink)}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 h1,h2,h3,p{margin:0}
 .num,.tnum{font-family:var(--font-num);font-variant-numeric:tabular-nums lining-nums;letter-spacing:.01em}
 .ltr{direction:ltr;unicode-bidi:isolate;display:inline-block}
@@ -44,7 +44,7 @@ h1,h2,h3,p{margin:0}
 
 /* ---------- App bar ---------- */
 .appbar{position:sticky;top:0;z-index:20;background:var(--steel);padding:calc(var(--safe-t) + 8px) 16px 8px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--rule-soft)}
-.plate{width:44px;height:44px;border-radius:9px;display:grid;place-items:center;flex:none;font:700 15px/1 var(--font-num);letter-spacing:.06em;color:var(--face);background:var(--ink);box-shadow:0 1px 0 rgba(255,255,255,.12) inset}
+.brandmark{height:28px;width:auto;flex:none;display:block}
 .appbar-title{flex:1;min-width:0}
 .appbar-title h1{font-size:20px;font-weight:600;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .appbar-title p{font-size:12px;color:var(--ink-2);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -89,9 +89,9 @@ body.has-live main{padding-bottom:calc(var(--nav-h) + var(--safe-b) + 96px)}
 .tabbar-in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);height:var(--nav-h)}
 .tab{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ink-2);font-size:12px;font-weight:500;padding:6px 2px}
 .tab .ic{width:26px;height:26px}
-.tab::before{content:"";position:absolute;top:0;width:2px;height:10px;background:var(--accent);border-radius:0 0 2px 2px;transform:scaleY(0);transform-origin:top;transition:transform .2s var(--ease)}
+.tab::before{content:"";position:absolute;top:0;width:28px;height:4px;background:var(--accent);border-radius:0 0 2px 2px;transform:scaleY(0);transform-origin:top;transition:transform .2s var(--ease)}
 .tab[aria-current="page"]{color:var(--ink);font-weight:600}
-.tab[aria-current="page"] .ic{color:var(--accent)}
+.tab[aria-current="page"] .ic{color:var(--ink)}
 .tab[aria-current="page"]::before{transform:scaleY(1)}
 .tab .badge{position:absolute;top:6px;inset-inline-start:calc(50% + 6px);min-width:20px;height:20px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font:700 12px/20px var(--font-num);text-align:center;padding:0 5px}
 
@@ -135,7 +135,7 @@ body.has-live main{padding-bottom:calc(var(--nav-h) + var(--safe-b) + 96px)}
 .dial .sub{fill:none;stroke:var(--rule)}
 .dial .subtk{stroke:var(--ink-2);stroke-width:1;vector-effect:non-scaling-stroke}
 .dial .unit{fill:var(--ink-3);font:500 11px var(--font-ui);text-anchor:middle}
-.dial .needle{fill:var(--accent);transition:transform .7s var(--ease);transform-origin:150px 150px}
+.dial .needle{fill:var(--accent);stroke:var(--ink);stroke-width:1;stroke-linejoin:round;transition:transform .7s var(--ease);transform-origin:150px 150px}
 .dial .cneedle{fill:var(--ink);transition:transform .7s var(--ease);transform-origin:150px 98px}
 .dial.idle .needle{fill:var(--ink-3)}
 .dial.fault .needle{fill:var(--fault)}
@@ -170,7 +170,7 @@ body.has-live main{padding-bottom:calc(var(--nav-h) + var(--safe-b) + 96px)}
 .scale i.end{top:0;height:16px;width:2px;background:var(--ink)}
 .scale .fill{position:absolute;top:11px;height:3px;border-radius:2px;background:var(--ink)}
 .scale .fill.live{background:var(--run)}
-.scale .over{position:absolute;top:11px;height:3px;background:var(--accent);border-radius:2px}
+.scale .over{position:absolute;top:10px;height:5px;background:var(--accent);border-radius:2px}
 .scale .lab{position:absolute;top:17px;font:600 12px/1.1 var(--font-num);color:var(--ink-2);white-space:nowrap}
 .scale .lab.s{inset-inline-start:0}
 .scale .lab.e{inset-inline-end:0}
@@ -178,7 +178,7 @@ body.has-live main{padding-bottom:calc(var(--nav-h) + var(--safe-b) + 96px)}
 /* path ruler (order stages) */
 .ruler{display:grid;grid-template-columns:repeat(5,1fr);position:relative;padding-top:18px;margin:4px 0}
 .ruler::before{content:"";position:absolute;inset-inline:10%;top:24px;height:1px;background:var(--rule)}
-.ruler .jaw{position:absolute;inset-inline-start:10%;top:23px;height:3px;background:var(--accent);border-radius:2px}
+.ruler .jaw{position:absolute;inset-inline-start:10%;top:22px;height:5px;background:var(--accent);border-radius:2px}
 .ruler .st{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font-size:12px;color:var(--ink-3);line-height:1.3}
 .ruler .st::before{content:"";width:1px;height:14px;background:var(--rule);margin-top:-1px}
 .ruler .st.on{color:var(--ink);font-weight:600}
@@ -191,7 +191,7 @@ body.has-live main{padding-bottom:calc(var(--nav-h) + var(--safe-b) + 96px)}
 .field>label,.field>.label{font-size:14px;font-weight:600;color:var(--ink-2)}
 .field input,.field select,.field textarea,.search input{width:100%;min-height:var(--tap);border:1px solid var(--rule);border-radius:var(--r-ctl);background:var(--face);color:var(--ink);padding:10px 14px;font-size:16px;outline:none;transition:border-color .15s,box-shadow .15s}
 .field textarea{min-height:88px;resize:vertical;line-height:1.6}
-.field input:focus,.field select:focus,.field textarea:focus,.search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.field input:focus,.field select:focus,.field textarea:focus,.search input:focus{border-color:var(--ink);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 45%,transparent)}
 .field input[type=number],.field input[type=date],.field input[type=time]{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:17px}
 .field input[type=date],.field input[type=time]{direction:ltr;text-align:right}
 .field input[aria-invalid="true"]{border-color:var(--danger)}
@@ -249,9 +249,9 @@ body.has-live .fab{bottom:calc(var(--nav-h) + var(--safe-b) + 80px)}
 .pickgroup{display:flex;flex-direction:column;gap:8px}
 .pick{display:flex;align-items:center;gap:12px;min-height:60px;border:1px solid var(--rule);border-radius:var(--r-ctl);background:var(--face);padding:8px 14px;text-align:start;width:100%}
 .pick .radio{width:22px;height:22px;border-radius:50%;border:2px solid var(--rule);flex:none;display:grid;place-items:center}
-.pick[aria-checked="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
-.pick[aria-checked="true"] .radio{border-color:var(--accent)}
-.pick[aria-checked="true"] .radio::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.pick[aria-checked="true"]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink) inset;background:var(--accent-soft)}
+.pick[aria-checked="true"] .radio{border-color:var(--ink)}
+.pick[aria-checked="true"] .radio::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--ink)}
 .pick .t{flex:1;min-width:0;line-height:1.35}
 .pick .t b{display:block;font-size:15px;font-weight:600;overflow-wrap:anywhere}
 .pick .t span{font-size:12.5px;color:var(--ink-2)}
